@@ -3,6 +3,14 @@ import pandas as pd
 
 st.set_page_config(layout="wide")
 
+# ---------------- CSS ----------------
+st.markdown("""
+<style>
+[data-testid="stMetricValue"] {font-size: 16px !important;}
+[data-testid="stMetricLabel"] {font-size: 12px !important;}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------- LOAD DATA ----------------
 @st.cache_data
 def load_data():
@@ -65,18 +73,22 @@ def load_data():
         build_ptc(ptc)
     ], ignore_index=True)
 
-
 df = load_data()
 
 # ---------------- SIDEBAR ----------------
 st.sidebar.markdown("## ⚙️ Ops Insight Dashboard")
 st.sidebar.markdown("---")
 
-menu = st.sidebar.selectbox("Menu", ["Search Tool"])
+st.sidebar.selectbox("Menu", ["Search Tool"])
 
 # ---------------- SOURCE ----------------
-st.sidebar.markdown("---")
-source = st.sidebar.radio("Source", ["ALL", "AZURE", "SNOW", "PTC"])
+st.sidebar.markdown("### Source")
+
+source = st.sidebar.radio(
+    "",
+    ["ALL","AZURE","SNOW","PTC"],
+    horizontal=True
+)
 
 if source != "ALL":
     base_df = df[df["Source"] == source]
@@ -97,15 +109,22 @@ release_filter = "ALL"
 if source == "AZURE":
     release_filter = create_filter(base_df, "Release")
 
-# ---------------- SEARCH FORM (FIXED CLEAR) ----------------
-with st.form("search_form"):
-    col1, col2 = st.columns([10,1])
-    keyword = col1.text_input("🔍 Search")
-    search_btn = col2.form_submit_button("Search")
-    clear_btn = col2.form_submit_button("❌ Clear")
+# ---------------- SEARCH (FIXED CLEAR) ----------------
+if "search_text" not in st.session_state:
+    st.session_state.search_text = ""
 
-if clear_btn:
-    keyword = ""
+col1, col2, col3 = st.columns([10,1,1])
+
+with col1:
+    keyword = st.text_input("🔍 Search", key="search_text")
+
+with col2:
+    st.button("Search")
+
+with col3:
+    if st.button("❌"):
+        st.session_state.search_text = ""
+        st.rerun()
 
 # ---------------- APPLY FILTER ----------------
 filtered = base_df.copy()
@@ -154,7 +173,7 @@ st.download_button(
     "filtered_data.csv"
 )
 
-# ---------------- KPI (2 COLUMN GRID) ----------------
+# ---------------- KPI ----------------
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📊 KPI")
 
