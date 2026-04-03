@@ -3,6 +3,23 @@ import pandas as pd
 
 st.set_page_config(layout="wide")
 
+# ---------------- CSS (FIX SCROLL + LAYOUT) ----------------
+st.markdown("""
+<style>
+body {overflow: hidden;}
+
+[data-testid="stSidebar"] {
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.block-container {
+    padding-top: 1rem;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------- LOAD DATA ----------------
 @st.cache_data
 def load_data():
@@ -67,21 +84,37 @@ def load_data():
 
 df = load_data()
 
-# ---------------- HEADER ----------------
-st.markdown("## ⚙️ Ops Insight Dashboard")
+# ---------------- SIDEBAR ----------------
+st.sidebar.markdown("## ⚙️ Ops Insight Dashboard")
+
+# MENU (RESTORED)
+menu = st.sidebar.selectbox("Menu", ["Search Tool", "Dashboard (Coming)", "Reports (Coming)"])
+
+st.sidebar.markdown("---")
 
 # ---------------- SEARCH ----------------
-keyword = st.text_input("🔍 Search", placeholder="Type keyword and press Enter")
+st.markdown("### 🔍 Search")
+keyword = st.text_input("", placeholder="Type keyword and press Enter")
+
+# ---------------- EMPTY STATE ----------------
+if not keyword:
+    st.info("🔍 Enter a keyword to begin search")
+    st.stop()
+
+# ---------------- FILTERED DATA ----------------
+filtered = df[
+    df.apply(lambda r: r.astype(str).str.contains(keyword, case=False).any(), axis=1)
+]
 
 # ---------------- TABS ----------------
 tab_all, tab_az, tab_snow, tab_ptc = st.tabs(["All", "Azure", "SNOW", "PTC"])
 
-def process_tab(data):
+def render_tab(data):
 
-    # Filters (LEFT SIDEBAR ONLY)
+    # SHOW FILTERS ONLY AFTER SEARCH
     st.sidebar.markdown("### 🔧 Filters")
 
-    state = st.sidebar.selectbox("State", ["ALL"] + sorted(data["State"].dropna().unique().tolist()))
+    state = st.sidebar.selectbox("State", ["ALL"] + sorted(data["State"].dropna().unique()))
 
     if state != "ALL":
         data = data[data["State"] == state]
@@ -93,19 +126,11 @@ def process_tab(data):
             if p != "ALL":
                 data = data[data["Priority"] == p]
 
-    # Search behavior (Google-like)
-    if not keyword:
-        st.info("🔍 Enter a keyword to begin search")
-        return
-
-    data = data[
-        data.apply(lambda r: r.astype(str).str.contains(keyword, case=False).any(), axis=1)
-    ]
-
+    # RESET INDEX
     data = data.reset_index(drop=True)
     data.index += 1
 
-    # KPI TOP
+    # ---------------- KPI (TOP BAR) ----------------
     col1, col2, col3, col4 = st.columns(4)
 
     total = len(data)
@@ -118,30 +143,24 @@ def process_tab(data):
     col3.metric("Closed", closed_count)
     col4.metric("Cancelled", cancelled)
 
-    # Smaller result title
     st.markdown(f"#### Results: {len(data)}")
 
     cols = ["ID","Title","Release","State","Created By","Created Date","Assigned To","Resolved Date","Priority"]
     cols = [c for c in cols if c in data.columns]
 
-    # CENTER ALIGN TABLE
-    st.dataframe(
-        data[cols].style.set_properties(**{'text-align': 'center'}),
-        use_container_width=True
-    )
+    st.dataframe(data[cols], use_container_width=True)
 
-    # Single download button
     st.download_button("⬇️ Download", data.to_csv(index=False), "data.csv")
 
 
 with tab_all:
-    process_tab(df)
+    render_tab(filtered)
 
 with tab_az:
-    process_tab(df[df["Source"]=="Azure"])
+    render_tab(filtered[filtered["Source"]=="Azure"])
 
 with tab_snow:
-    process_tab(df[df["Source"]=="SNOW"])
+    render_tab(filtered[filtered["Source"]=="SNOW"])
 
 with tab_ptc:
-    process_tab(df[df["Source"]=="PTC"])
+    render_tab(filtered[filtered["Source"]=="PTC"])
