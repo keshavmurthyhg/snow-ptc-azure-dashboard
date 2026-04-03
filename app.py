@@ -74,36 +74,16 @@ st.sidebar.markdown("---")
 
 menu = st.sidebar.selectbox("Menu", ["Search Tool"])
 
-# ---------------- KPI (TOP FIXED) ----------------
-st.sidebar.markdown("### 📊 KPI")
-
-def show_kpi(data):
-    total = len(data)
-    open_count = data["Status"].astype(str).str.contains("open|new", case=False, na=False).sum()
-    closed_count = data["Status"].astype(str).str.contains("closed|resolved", case=False, na=False).sum()
-    cancelled_count = data["Status"].astype(str).str.contains("cancel", case=False, na=False).sum()
-
-    c1, c2 = st.sidebar.columns(2)
-    c1.metric("Total", total)
-    c2.metric("Open", open_count)
-
-    c3, c4 = st.sidebar.columns(2)
-    c3.metric("Closed", closed_count)
-    c4.metric("Cancelled", cancelled_count)
-
-show_kpi(df)
-
-# ---------------- SOURCE SELECTOR (REPLACES TAB LOGIC) ----------------
+# ---------------- SOURCE ----------------
 st.sidebar.markdown("---")
 source = st.sidebar.radio("Source", ["ALL", "AZURE", "SNOW", "PTC"])
 
-# ---------------- BASE DATA ----------------
 if source != "ALL":
     base_df = df[df["Source"] == source]
 else:
     base_df = df
 
-# ---------------- FILTERS (DYNAMIC) ----------------
+# ---------------- FILTERS ----------------
 st.sidebar.markdown("### 🔧 Filters")
 
 def create_filter(data, col):
@@ -117,8 +97,16 @@ release_filter = "ALL"
 if source == "AZURE":
     release_filter = create_filter(base_df, "Release")
 
-# ---------------- SEARCH ----------------
-keyword = st.text_input("🔍 Search")
+# ---------------- SEARCH + CLEAR ----------------
+col1, col2 = st.columns([10,1])
+
+with col1:
+    keyword = st.text_input("🔍 Search", key="search_box")
+
+with col2:
+    if st.button("❌"):
+        st.session_state["search_box"] = ""
+        keyword = ""
 
 # ---------------- APPLY FILTER ----------------
 filtered = base_df.copy()
@@ -140,8 +128,11 @@ if keyword:
 filtered = filtered.reset_index(drop=True)
 filtered.index += 1
 
-# ---------------- TABLE ----------------
-st.write(f"### 🔢 Results: {len(filtered)}")
+# ---------------- RESULTS ----------------
+st.markdown(
+    f"<h4 style='font-size:18px;'>🔢 Results: {len(filtered)}</h4>",
+    unsafe_allow_html=True
+)
 
 cols = [
     "Number","Description","Priority","Status",
@@ -156,3 +147,27 @@ st.download_button(
     filtered.to_csv(index=False),
     "filtered_data.csv"
 )
+
+# ---------------- KPI (BOTTOM LEFT) ----------------
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📊 KPI")
+
+def show_kpi(data):
+    total = len(data)
+    open_count = data["Status"].astype(str).str.contains("open|new", case=False, na=False).sum()
+    closed_count = data["Status"].astype(str).str.contains("closed|resolved", case=False, na=False).sum()
+    cancelled_count = data["Status"].astype(str).str.contains("cancel", case=False, na=False).sum()
+
+    st.sidebar.markdown(
+        f"""
+        <div style="font-size:14px">
+        <b>Total:</b> {total}<br>
+        <b>Open:</b> {open_count}<br>
+        <b>Closed:</b> {closed_count}<br>
+        <b>Cancelled:</b> {cancelled_count}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+show_kpi(base_df)
