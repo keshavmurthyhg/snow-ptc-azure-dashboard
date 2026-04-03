@@ -3,7 +3,7 @@ import pandas as pd
 
 st.set_page_config(layout="wide")
 
-st.title("📊 Unified Dashboard (SNOW / Azure / PTC)")
+st.title("📊 Operations Intelligence Dashboard")
 
 # ---------------- LOAD DATA ----------------
 @st.cache_data
