@@ -59,16 +59,22 @@ def load_data():
             "Source": "PTC"
         })
 
-    return pd.concat([
+    df = pd.concat([
         build_azure(azure),
         build_snow(snow),
         build_ptc(ptc)
     ], ignore_index=True)
 
+    return df
+
 
 df = load_data()
 
-# ---------------- SIDEBAR (ONLY ONCE) ----------------
+# ✅ CRITICAL FIX (TAB FILTERING ISSUE)
+df["Source"] = df["Source"].astype(str).str.strip().str.upper()
+
+
+# ---------------- SIDEBAR ----------------
 st.sidebar.markdown("## ⚙️ Ops Insight Dashboard")
 st.sidebar.markdown("---")
 
@@ -76,7 +82,7 @@ menu = st.sidebar.selectbox("Menu", ["Search Tool"])
 
 st.sidebar.markdown("### 🔧 Filters")
 
-# FILTERS CREATED ONLY ONCE
+# ---------------- FILTERS ----------------
 def create_filter(data, column):
     vals = data[column].dropna().astype(str).unique().tolist()
     if len(vals) == 0:
@@ -93,10 +99,12 @@ priority_filter = "ALL"
 if df["Priority"].notna().any():
     priority_filter = create_filter(df, "Priority")
 
+
 # ---------------- SEARCH ----------------
 keyword = st.text_input("🔍 Search")
 
-# ---------------- KPI (BASED ON FULL DATA ONLY) ----------------
+
+# ---------------- KPI (ALWAYS FULL DATA) ----------------
 def show_kpi(data):
     total = len(data)
     open_count = data["State"].astype(str).str.contains("open|new", case=False, na=False).sum()
@@ -111,11 +119,13 @@ def show_kpi(data):
     col3.metric("Closed", closed_count)
     col4.metric("Cancelled", cancelled_count)
 
+
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📊 KPI")
-show_kpi(df)  # ALWAYS FULL DATA
+show_kpi(df)
 
-# ---------------- MAIN FILTER FUNCTION ----------------
+
+# ---------------- APPLY FILTERS ----------------
 def apply_filters(data):
 
     filtered = data.copy()
@@ -137,18 +147,17 @@ def apply_filters(data):
     return filtered.reset_index(drop=True)
 
 
-# ---------------- TABS ----------------
-tab_all, tab_az, tab_snow, tab_ptc = st.tabs(["All", "Azure", "SNOW", "PTC"])
-
+# ---------------- TABLE ----------------
 def show_table(data):
+
     data = apply_filters(data)
     data.index += 1
 
     st.write(f"### 🔢 Results: {len(data)}")
 
     cols = [
-        "Source","ID","Title","Release","State",
-        "Created By","Created Date","Assigned To","Resolved Date","Priority"
+        "Source","ID","Title","Priority","State",
+        "Created By","Created Date","Assigned To","Resolved Date","Release"
     ]
     cols = [c for c in cols if c in data.columns]
 
@@ -157,15 +166,19 @@ def show_table(data):
     st.download_button(
         "⬇️ Download",
         data.to_csv(index=False),
-        "filtered_data.csv"
+        "filtered_data.csv",
+        key=f"download_{len(data)}"
     )
 
+
+# ---------------- TABS ----------------
+tab_all, tab_az, tab_snow, tab_ptc = st.tabs(["All", "Azure", "SNOW", "PTC"])
 
 with tab_all:
     show_table(df)
 
 with tab_az:
-    show_table(df[df["Source"] == "Azure"])
+    show_table(df[df["Source"] == "AZURE"])
 
 with tab_snow:
     show_table(df[df["Source"] == "SNOW"])
