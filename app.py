@@ -74,109 +74,85 @@ st.sidebar.markdown("---")
 
 menu = st.sidebar.selectbox("Menu", ["Search Tool"])
 
-# ---------------- KPI ----------------
+# ---------------- KPI (TOP FIXED) ----------------
+st.sidebar.markdown("### 📊 KPI")
+
 def show_kpi(data):
     total = len(data)
     open_count = data["Status"].astype(str).str.contains("open|new", case=False, na=False).sum()
     closed_count = data["Status"].astype(str).str.contains("closed|resolved", case=False, na=False).sum()
     cancelled_count = data["Status"].astype(str).str.contains("cancel", case=False, na=False).sum()
 
-    col1, col2 = st.sidebar.columns(2)
-    col1.metric("Total", total)
-    col2.metric("Open", open_count)
+    c1, c2 = st.sidebar.columns(2)
+    c1.metric("Total", total)
+    c2.metric("Open", open_count)
 
-    col3, col4 = st.sidebar.columns(2)
-    col3.metric("Closed", closed_count)
-    col4.metric("Cancelled", cancelled_count)
+    c3, c4 = st.sidebar.columns(2)
+    c3.metric("Closed", closed_count)
+    c4.metric("Cancelled", cancelled_count)
 
-st.sidebar.markdown("### 📊 KPI")
 show_kpi(df)
 
-# ---------------- SEARCH ----------------
-keyword = st.text_input("🔍 Search")
-
-# ---------------- TABS ----------------
-tab_all, tab_az, tab_snow, tab_ptc = st.tabs(["All", "Azure", "SNOW", "PTC"])
-
-# ---------------- FILTERS (ONLY ONCE, BASED ON ACTIVE TAB) ----------------
+# ---------------- SOURCE SELECTOR (REPLACES TAB LOGIC) ----------------
 st.sidebar.markdown("---")
+source = st.sidebar.radio("Source", ["ALL", "AZURE", "SNOW", "PTC"])
+
+# ---------------- BASE DATA ----------------
+if source != "ALL":
+    base_df = df[df["Source"] == source]
+else:
+    base_df = df
+
+# ---------------- FILTERS (DYNAMIC) ----------------
 st.sidebar.markdown("### 🔧 Filters")
 
-active_source = st.session_state.get("active_tab", "ALL")
-
-# Helper for filter
 def create_filter(data, col):
     vals = data[col].dropna().astype(str).unique().tolist()
     return st.sidebar.selectbox(col, ["ALL"] + sorted(vals)) if vals else "ALL"
 
-# Base dataset for filters
-if active_source == "AZURE":
-    base_df = df[df["Source"] == "AZURE"]
-elif active_source == "SNOW":
-    base_df = df[df["Source"] == "SNOW"]
-elif active_source == "PTC":
-    base_df = df[df["Source"] == "PTC"]
-else:
-    base_df = df
-
-# Filters
 state_filter = create_filter(base_df, "Status")
 priority_filter = create_filter(base_df, "Priority")
 
 release_filter = "ALL"
-if active_source == "AZURE":
+if source == "AZURE":
     release_filter = create_filter(base_df, "Release")
 
+# ---------------- SEARCH ----------------
+keyword = st.text_input("🔍 Search")
+
 # ---------------- APPLY FILTER ----------------
-def apply_filters(data):
+filtered = base_df.copy()
 
-    if state_filter != "ALL":
-        data = data[data["Status"] == state_filter]
+if state_filter != "ALL":
+    filtered = filtered[filtered["Status"] == state_filter]
 
-    if priority_filter != "ALL":
-        data = data[data["Priority"] == priority_filter]
+if priority_filter != "ALL":
+    filtered = filtered[filtered["Priority"] == priority_filter]
 
-    if release_filter != "ALL":
-        data = data[data["Release"] == release_filter]
+if release_filter != "ALL":
+    filtered = filtered[filtered["Release"] == release_filter]
 
-    if keyword:
-        data = data[data.apply(lambda r: r.astype(str).str.contains(keyword, case=False).any(), axis=1)]
-
-    return data.reset_index(drop=True)
-
-# ---------------- TABLE ----------------
-def show_table(data, source):
-    st.session_state["active_tab"] = source
-
-    data = apply_filters(data)
-    data.index += 1
-
-    st.write(f"### 🔢 Results: {len(data)}")
-
-    cols = [
-        "Number","Description","Priority","Status",
-        "Created By","Created Date","Assigned To",
-        "Resolution Date","Release","Source"
+if keyword:
+    filtered = filtered[
+        filtered.apply(lambda r: r.astype(str).str.contains(keyword, case=False).any(), axis=1)
     ]
 
-    st.dataframe(data[cols], use_container_width=True)
+filtered = filtered.reset_index(drop=True)
+filtered.index += 1
 
-    st.download_button(
-        "⬇️ Download",
-        data.to_csv(index=False),
-        "filtered_data.csv",
-        key=f"download_{source}"
-    )
+# ---------------- TABLE ----------------
+st.write(f"### 🔢 Results: {len(filtered)}")
 
-# ---------------- TAB CONTENT ----------------
-with tab_all:
-    show_table(df, "ALL")
+cols = [
+    "Number","Description","Priority","Status",
+    "Created By","Created Date","Assigned To",
+    "Resolution Date","Release","Source"
+]
 
-with tab_az:
-    show_table(df[df["Source"] == "AZURE"], "AZURE")
+st.dataframe(filtered[cols], use_container_width=True)
 
-with tab_snow:
-    show_table(df[df["Source"] == "SNOW"], "SNOW")
-
-with tab_ptc:
-    show_table(df[df["Source"] == "PTC"], "PTC")
+st.download_button(
+    "⬇️ Download",
+    filtered.to_csv(index=False),
+    "filtered_data.csv"
+)
